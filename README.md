@@ -1,2 +1,0 @@
-# diegosouzamarques.github.io
-PWAPROTO
