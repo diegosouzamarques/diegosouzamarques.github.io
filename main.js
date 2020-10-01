@@ -741,7 +741,7 @@ AppModule.ɵinj = _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵdefineInjector
             _angular_forms__WEBPACK_IMPORTED_MODULE_1__["FormsModule"],
             _app_routing_module__WEBPACK_IMPORTED_MODULE_5__["AppRoutingModule"],
             _angular_common_http__WEBPACK_IMPORTED_MODULE_3__["HttpClientModule"],
-            _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('service-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production, registrationStrategy: "registerImmediately" }),
+            _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('service-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production }),
             _angular_platform_browser_animations__WEBPACK_IMPORTED_MODULE_9__["BrowserAnimationsModule"],
             _angular_material_form_field__WEBPACK_IMPORTED_MODULE_13__["MatFormFieldModule"],
             _angular_material_input__WEBPACK_IMPORTED_MODULE_14__["MatInputModule"],
@@ -817,7 +817,7 @@ AppModule.ɵinj = _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵdefineInjector
                     _angular_forms__WEBPACK_IMPORTED_MODULE_1__["FormsModule"],
                     _app_routing_module__WEBPACK_IMPORTED_MODULE_5__["AppRoutingModule"],
                     _angular_common_http__WEBPACK_IMPORTED_MODULE_3__["HttpClientModule"],
-                    _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('service-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production, registrationStrategy: "registerImmediately" }),
+                    _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('service-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production }),
                     _angular_platform_browser_animations__WEBPACK_IMPORTED_MODULE_9__["BrowserAnimationsModule"],
                     _angular_material_form_field__WEBPACK_IMPORTED_MODULE_13__["MatFormFieldModule"],
                     _angular_material_input__WEBPACK_IMPORTED_MODULE_14__["MatInputModule"],
@@ -1142,8 +1142,11 @@ __webpack_require__.r(__webpack_exports__);
 if (_environments_environment__WEBPACK_IMPORTED_MODULE_1__["environment"].production) {
     Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["enableProdMode"])();
 }
-_angular_platform_browser__WEBPACK_IMPORTED_MODULE_3__["platformBrowser"]().bootstrapModule(_app_app_module__WEBPACK_IMPORTED_MODULE_2__["AppModule"])
-    .catch(err => console.error(err));
+_angular_platform_browser__WEBPACK_IMPORTED_MODULE_3__["platformBrowser"]().bootstrapModule(_app_app_module__WEBPACK_IMPORTED_MODULE_2__["AppModule"]).then(() => {
+    if ('serviceWorker' in navigator && _environments_environment__WEBPACK_IMPORTED_MODULE_1__["environment"].production) {
+        navigator.serviceWorker.register('service-worker.js');
+    }
+}).catch(err => console.log(err));
 
 
 /***/ }),
