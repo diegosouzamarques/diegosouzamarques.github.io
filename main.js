@@ -428,16 +428,21 @@ const environment = {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "StikynotService", function() { return StikynotService; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "fXoL");
-/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/router */ "tyNb");
-/* harmony import */ var _angular_common_http__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @angular/common/http */ "tk/3");
+/* harmony import */ var rxjs_operators__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! rxjs/operators */ "kU1M");
+/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @angular/router */ "tyNb");
+/* harmony import */ var _angular_common_http__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @angular/common/http */ "tk/3");
+/* harmony import */ var _services_indexed_db_service__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../services/indexed-db.service */ "yCs1");
+
+
 
 
 
 
 class StikynotService {
-    constructor(router, http) {
+    constructor(router, http, indexedDBService) {
         this.router = router;
         this.http = http;
+        this.indexedDBService = indexedDBService;
         this.API = "https://monitoramento-backend.herokuapp.com/anotacao";
     }
     list() {
@@ -445,20 +450,32 @@ class StikynotService {
     }
     addNote(nota) {
         this.http.post(this.API, nota)
-            .pipe()
+            .pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_1__["catchError"])(err => {
+            console.log('Handling error locally and rethrowing it...', err);
+            this.indexedDBService
+                .addNota(nota)
+                .then(this.backgroundSync)
+                .catch(console.log);
+            return "Backgroud item";
+        }))
             .subscribe((data) => {
             console.log(data);
-        });
+        }, err => { console.log('HTTP Error', err); });
+    }
+    backgroundSync() {
+        navigator.serviceWorker.ready
+            .then((swRegistration) => swRegistration.sync.register('post-data'))
+            .catch(console.log);
     }
 }
-StikynotService.ɵfac = function StikynotService_Factory(t) { return new (t || StikynotService)(_angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵinject"](_angular_router__WEBPACK_IMPORTED_MODULE_1__["Router"]), _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵinject"](_angular_common_http__WEBPACK_IMPORTED_MODULE_2__["HttpClient"])); };
+StikynotService.ɵfac = function StikynotService_Factory(t) { return new (t || StikynotService)(_angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵinject"](_angular_router__WEBPACK_IMPORTED_MODULE_2__["Router"]), _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵinject"](_angular_common_http__WEBPACK_IMPORTED_MODULE_3__["HttpClient"]), _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵinject"](_services_indexed_db_service__WEBPACK_IMPORTED_MODULE_4__["IndexedDBService"])); };
 StikynotService.ɵprov = _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdefineInjectable"]({ token: StikynotService, factory: StikynotService.ɵfac, providedIn: 'root' });
 /*@__PURE__*/ (function () { _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵsetClassMetadata"](StikynotService, [{
         type: _angular_core__WEBPACK_IMPORTED_MODULE_0__["Injectable"],
         args: [{
                 providedIn: 'root'
             }]
-    }], function () { return [{ type: _angular_router__WEBPACK_IMPORTED_MODULE_1__["Router"] }, { type: _angular_common_http__WEBPACK_IMPORTED_MODULE_2__["HttpClient"] }]; }, null); })();
+    }], function () { return [{ type: _angular_router__WEBPACK_IMPORTED_MODULE_2__["Router"] }, { type: _angular_common_http__WEBPACK_IMPORTED_MODULE_3__["HttpClient"] }, { type: _services_indexed_db_service__WEBPACK_IMPORTED_MODULE_4__["IndexedDBService"] }]; }, null); })();
 
 
 /***/ }),
@@ -474,19 +491,88 @@ StikynotService.ɵprov = _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdefineI
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "AppComponent", function() { return AppComponent; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "fXoL");
-/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/router */ "tyNb");
+/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! rxjs */ "qCKp");
+/* harmony import */ var _angular_service_worker__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @angular/service-worker */ "Jho9");
+/* harmony import */ var _services_indexed_db_service__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./services/indexed-db.service */ "yCs1");
+/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @angular/router */ "tyNb");
+
+
+
 
 
 
 class AppComponent {
-    constructor() {
+    constructor(update, appRef, swPush, indexedDBService) {
+        this.update = update;
+        this.appRef = appRef;
+        this.swPush = swPush;
+        this.indexedDBService = indexedDBService;
         this.title = 'monitoramento';
+        this.publicKey = 'BJkUsZs9QYXvusPKt-2SJ_LZD8Y6L3HHEJjP9rVNaiBgjOCr5aLyGMGGJelLMi4eh-2M7SyRbQPZvEok1iYtTuA';
+        this.updateClient();
+        this.checkUpdate();
+    }
+    ngOnInit() {
+        this.pushSubscription();
+        this.swPush.messages.subscribe((message) => console.log(message));
+        this.swPush.notificationClicks.subscribe(({ action, notification }) => {
+            window.open(notification.data.url);
+        });
+        /*     this.http.get('http://dummy.restapiexample.com/api/v1/employees').subscribe(
+              (res: any) => {
+                this.apiData = res.data;
+              },
+              (err) => {
+                console.error(err);
+              }
+            ); */
+    }
+    updateClient() {
+        if (!this.update.isEnabled) {
+            console.log('Not Enabled');
+            return;
+        }
+        this.update.available.subscribe((event) => {
+            console.log(`current`, event.current, `available `, event.available);
+            if (confirm('update available for the app please conform')) {
+                this.update.activateUpdate().then(() => location.reload());
+            }
+        });
+        this.update.activated.subscribe((event) => {
+            console.log(`current`, event.previous, `available `, event.current);
+        });
+    }
+    checkUpdate() {
+        this.appRef.isStable.subscribe((isStable) => {
+            if (isStable) {
+                const timeInterval = Object(rxjs__WEBPACK_IMPORTED_MODULE_1__["interval"])(8 * 60 * 60 * 1000);
+                timeInterval.subscribe(() => {
+                    this.update.checkForUpdate().then(() => console.log('checked'));
+                    console.log('update checked');
+                });
+            }
+        });
+    }
+    pushSubscription() {
+        if (!this.swPush.isEnabled) {
+            console.log('Notification is not enabled');
+            return;
+        }
+        this.swPush
+            .requestSubscription({
+            serverPublicKey: this.publicKey,
+        })
+            .then((sub) => {
+            // Make a post call to serve
+            console.log(JSON.stringify(sub));
+        })
+            .catch((err) => console.log(err));
     }
 }
-AppComponent.ɵfac = function AppComponent_Factory(t) { return new (t || AppComponent)(); };
+AppComponent.ɵfac = function AppComponent_Factory(t) { return new (t || AppComponent)(_angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdirectiveInject"](_angular_service_worker__WEBPACK_IMPORTED_MODULE_2__["SwUpdate"]), _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdirectiveInject"](_angular_core__WEBPACK_IMPORTED_MODULE_0__["ApplicationRef"]), _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdirectiveInject"](_angular_service_worker__WEBPACK_IMPORTED_MODULE_2__["SwPush"]), _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdirectiveInject"](_services_indexed_db_service__WEBPACK_IMPORTED_MODULE_3__["IndexedDBService"])); };
 AppComponent.ɵcmp = _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdefineComponent"]({ type: AppComponent, selectors: [["app-root"]], decls: 1, vars: 0, template: function AppComponent_Template(rf, ctx) { if (rf & 1) {
         _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵelement"](0, "router-outlet");
-    } }, directives: [_angular_router__WEBPACK_IMPORTED_MODULE_1__["RouterOutlet"]], styles: ["\n/*# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IiIsImZpbGUiOiJzcmMvYXBwL2FwcC5jb21wb25lbnQuY3NzIn0= */"] });
+    } }, directives: [_angular_router__WEBPACK_IMPORTED_MODULE_4__["RouterOutlet"]], styles: ["\n/*# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IiIsImZpbGUiOiJzcmMvYXBwL2FwcC5jb21wb25lbnQuY3NzIn0= */"] });
 /*@__PURE__*/ (function () { _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵsetClassMetadata"](AppComponent, [{
         type: _angular_core__WEBPACK_IMPORTED_MODULE_0__["Component"],
         args: [{
@@ -494,7 +580,7 @@ AppComponent.ɵcmp = _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdefineCompo
                 templateUrl: './app.component.html',
                 styleUrls: ['./app.component.css']
             }]
-    }], null, null); })();
+    }], function () { return [{ type: _angular_service_worker__WEBPACK_IMPORTED_MODULE_2__["SwUpdate"] }, { type: _angular_core__WEBPACK_IMPORTED_MODULE_0__["ApplicationRef"] }, { type: _angular_service_worker__WEBPACK_IMPORTED_MODULE_2__["SwPush"] }, { type: _services_indexed_db_service__WEBPACK_IMPORTED_MODULE_3__["IndexedDBService"] }]; }, null); })();
 
 
 /***/ }),
@@ -655,7 +741,7 @@ AppModule.ɵinj = _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵdefineInjector
             _angular_forms__WEBPACK_IMPORTED_MODULE_1__["FormsModule"],
             _app_routing_module__WEBPACK_IMPORTED_MODULE_5__["AppRoutingModule"],
             _angular_common_http__WEBPACK_IMPORTED_MODULE_3__["HttpClientModule"],
-            _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('ngsw-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production }),
+            _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('service-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production }),
             _angular_platform_browser_animations__WEBPACK_IMPORTED_MODULE_9__["BrowserAnimationsModule"],
             _angular_material_form_field__WEBPACK_IMPORTED_MODULE_13__["MatFormFieldModule"],
             _angular_material_input__WEBPACK_IMPORTED_MODULE_14__["MatInputModule"],
@@ -731,7 +817,7 @@ AppModule.ɵinj = _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵdefineInjector
                     _angular_forms__WEBPACK_IMPORTED_MODULE_1__["FormsModule"],
                     _app_routing_module__WEBPACK_IMPORTED_MODULE_5__["AppRoutingModule"],
                     _angular_common_http__WEBPACK_IMPORTED_MODULE_3__["HttpClientModule"],
-                    _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('ngsw-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production }),
+                    _angular_service_worker__WEBPACK_IMPORTED_MODULE_7__["ServiceWorkerModule"].register('service-worker.js', { enabled: _environments_environment__WEBPACK_IMPORTED_MODULE_8__["environment"].production }),
                     _angular_platform_browser_animations__WEBPACK_IMPORTED_MODULE_9__["BrowserAnimationsModule"],
                     _angular_material_form_field__WEBPACK_IMPORTED_MODULE_13__["MatFormFieldModule"],
                     _angular_material_input__WEBPACK_IMPORTED_MODULE_14__["MatInputModule"],
@@ -988,6 +1074,53 @@ LoginComponent.ɵcmp = _angular_core__WEBPACK_IMPORTED_MODULE_0__["ɵɵdefineCom
                 styleUrls: ['./login.component.css']
             }]
     }], function () { return [{ type: _auth_service__WEBPACK_IMPORTED_MODULE_2__["AuthService"] }, { type: _angular_material_snack_bar__WEBPACK_IMPORTED_MODULE_3__["MatSnackBar"] }]; }, null); })();
+
+
+/***/ }),
+
+/***/ "yCs1":
+/*!************************************************!*\
+  !*** ./src/app/services/indexed-db.service.ts ***!
+  \************************************************/
+/*! exports provided: IndexedDBService */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "IndexedDBService", function() { return IndexedDBService; });
+/* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! tslib */ "mrSG");
+/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/core */ "fXoL");
+/* harmony import */ var idb__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! idb */ "P0+2");
+
+
+
+
+class IndexedDBService {
+    constructor() {
+        this.connectToDb();
+    }
+    connectToDb() {
+        return Object(tslib__WEBPACK_IMPORTED_MODULE_0__["__awaiter"])(this, void 0, void 0, function* () {
+            this.db = yield Object(idb__WEBPACK_IMPORTED_MODULE_2__["openDB"])('db-motin', 1, {
+                upgrade(db) {
+                    db.createObjectStore('nota-store', { autoIncrement: true });
+                    db.createObjectStore('notas', { autoIncrement: true });
+                },
+            });
+        });
+    }
+    addNota(not) {
+        return this.db.add('notas', { "titulo": not.titulo, "message": not.message, "color": not.color });
+    }
+}
+IndexedDBService.ɵfac = function IndexedDBService_Factory(t) { return new (t || IndexedDBService)(); };
+IndexedDBService.ɵprov = _angular_core__WEBPACK_IMPORTED_MODULE_1__["ɵɵdefineInjectable"]({ token: IndexedDBService, factory: IndexedDBService.ɵfac, providedIn: 'root' });
+/*@__PURE__*/ (function () { _angular_core__WEBPACK_IMPORTED_MODULE_1__["ɵsetClassMetadata"](IndexedDBService, [{
+        type: _angular_core__WEBPACK_IMPORTED_MODULE_1__["Injectable"],
+        args: [{
+                providedIn: 'root',
+            }]
+    }], function () { return []; }, null); })();
 
 
 /***/ }),
