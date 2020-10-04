@@ -1,5 +1,22 @@
 //importScripts('./ngsw-worker.js');
 
+self.addEventListener('fetch', function(event) {
+  return event.respondWith(
+    caches.match(event.request)
+    .then(function(response) {
+      let requestToCache = event.request.clone();
+
+      return fetch(requestToCache).then().catch(error => {
+        // Check if the user is offline first and is trying to navigate to a web page
+        if (event.request.method === 'GET' && event.request.headers.get('accept').includes('text/html')) {
+          // Return the offline page
+          return caches.match("offline-page.html");
+        }
+      });
+    })
+  );
+});
+
 self.addEventListener('sync', (event) => {
   if (event.tag === 'post-data') {
     // call method
