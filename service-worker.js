@@ -30,15 +30,13 @@ function addData(nota) {
     message: nota.message,
     color: nota.color 
   };
-  fetch('https://monitoramento-backend.herokuapp.com/anotacao', {
+ return fetch('https://monitoramento-backend.herokuapp.com/anotacao', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(obj),
-  })
-    .then(() => Promise.resolve())
-    .catch(() => Promise.reject());
+  });
 }
 
 function getDataAndSend() {
@@ -77,21 +75,23 @@ function getData(db) {
       };
       reqObject.onsuccess = (event) => {
         console.log(reqObject.result);
-        addData(reqObject.result);
-        console.log('delete seq: '+seq);
+        addData(reqObject.result).then((seq) => {
+          const trans = db.transaction(["notas"], "readwrite");
+          const store = trans.objectStore("notas");
+          const reqDelete = store.delete(seq);
+          
+          reqDelete.onerror = (event) => {
+            // Handle errors!
+            console.error(event);
+          };
+          reqDelete.onsuccess = (event) => {
+            // Handle errors!
+            console.log('delete sucess: '+seq);
+          };
+          
+          Promise.resolve()})
+        .catch(() => Promise.reject());;
 
-        const trans = db.transaction(["notas"], "readwrite");
-        const store = trans.objectStore("notas");
-        const reqDelete = store.delete(seq);
-        
-        reqDelete.onerror = (event) => {
-          // Handle errors!
-          console.error(event);
-        };
-        reqDelete.onsuccess = (event) => {
-          // Handle errors!
-          console.log('delete sucess: '+seq);
-        };
 
        };
     } 
