@@ -30,6 +30,7 @@ function addData(nota) {
     message: nota.message,
     color: nota.color 
   };
+
  return fetch('https://monitoramento-backend.herokuapp.com/anotacao', {
     method: 'POST',
     headers: {
@@ -57,28 +58,26 @@ function getData(db) {
    console.log("Event");
   const transaction = db.transaction(['notas']);
   const objectStore = transaction.objectStore('notas');
-  const reqkey = objectStore.getAllKeys();
-  reqkey.onerror = (event) => {
-    // Handle errors!
-    console.error(event);
-  };
-  reqkey.onsuccess = (event) => {
-    // Do something with the request.result!
-    console.log(reqkey.result);
-    for (let i = 0; i < reqkey.result.length; i++) {
-      seq = reqkey.result[i];
-      console.log (seq);
-      const reqObject  = objectStore.get(seq);
-      reqObject.onerror = (event) => {
-        // Handle errors!
-        console.error(event);
+  var request = objectStore.openCursor();
+  request.onsuccess = function(event) {
+    var cursor = event.target.result;
+    if(cursor) {
+      console.log("cursor:");
+      console.log(cursor.value);
+      console.log(cursor.key);
+
+      let obj = {
+        key:cursor.key,
+        titulo: cursor.value.titulo,
+        message: cursor.value.message,
+        color: cursor.value.color 
       };
-      reqObject.onsuccess = (event) => {
-        console.log(reqObject.result);
-        addData(reqObject.result).then((seq) => {
+
+      addData(obj).then((res) => {
+
           const trans = db.transaction(["notas"], "readwrite");
           const store = trans.objectStore("notas");
-          const reqDelete = store.delete(seq);
+          const reqDelete = store.delete(obj.key||0);
           
           reqDelete.onerror = (event) => {
             // Handle errors!
@@ -86,15 +85,16 @@ function getData(db) {
           };
           reqDelete.onsuccess = (event) => {
             // Handle errors!
-            console.log('delete sucess: '+seq);
+            console.log('delete sucess: '+obj.key);
           };
-          
-          Promise.resolve()})
-        .catch(() => Promise.reject());;
+
+        Promise.resolve();
+      }).catch(() => Promise.reject());
 
 
-       };
-    } 
- 
+      cursor.continue();
+    } else {
+      // no more results
+    }
   };
 }
